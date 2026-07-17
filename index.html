@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>눈 떠! — 졸음 감지 집중 도우미</title>
+<meta name="description" content="공부하다 졸면 알람이 울려요. 웹캠으로 눈 감김을 감지하는 무료 집중 도우미. 영상은 서버로 전송되지 않습니다.">
+<style>
+  :root {
+    --bg: #1E1F22;
+    --card: #27292d;
+    --card2: #313438;
+    --text: #F5F5F0;
+    --sub: #6B7280;
+    --light-gray: #D1D5DB;
+    --accent: #4CAF7A;
+    --accent2: #6FC79A;
+    --danger: #ff5c7a;
+    --hero-green: var(--accent);
+    --hero-white: var(--text);
+    --hero-dark: var(--bg);
+    --hero-gray: var(--sub);
+    --hero-lightgray: var(--light-gray);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Pretendard', -apple-system, 'Segoe UI', 'Malgun Gothic', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 20px;
+    padding: 24px 16px 40px;
+  }
+  .main-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+  }
+  .side-rail {
+    position: sticky;
+    top: 24px;
+    width: 160px;
+    flex-shrink: 0;
+    background: var(--card);
+    border: 1px dashed #3a3d42;
+    border-radius: 16px;
+    min-height: 600px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--sub);
+    font-size: 0.85rem;
+    text-align: center;
+  }
+  @media (max-width: 1100px) {
+    .side-rail { display: none; }
+  }
+  header { text-align: center; margin-bottom: 20px; }
+  header h1 { font-size: 2rem; letter-spacing: -0.5px; }
+  header h1 .eye { display: inline-block; }
+  header p { color: var(--sub); margin-top: 6px; font-size: 0.95rem; }
+
+  .app {
+    width: 100%;
+    max-width: 720px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .video-wrap {
+    position: relative;
+    background: var(--card);
+    border-radius: 20px;
+    overflow: hidden;
+    aspect-ratio: 4 / 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+    transition: box-shadow 0.3s;
+  }
+  .video-wrap.alarming {
+    box-shadow: 0 0 0 4px var(--danger), 0 8px 40px rgba(255,92,122,0.5);
+    animation: shake 0.4s infinite;
+  }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    75% { transform: translateX(4px); }
+  }
+  video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1);
+    display: none;
+    transition: filter 0.3s;
+  }
+  video.beauty {
+    filter: brightness(1.08) contrast(0.96) saturate(1.18) blur(0.4px);
+  }
+  .placeholder {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 22px;
+    text-align: center;
+    padding: 32px;
+    background:
+      radial-gradient(ellipse 70% 55% at 50% 34%, rgba(76,175,122,0.22), transparent 65%),
+      linear-gradient(180deg, rgba(14,17,20,0.55) 0%, rgba(10,12,10,0.75) 100%),
+      url('assets/forest.webp') center 30%/cover no-repeat;
+  }
+  .moon-face {
+    position: relative;
+    width: 220px;
+    height: 220px;
+    z-index: 1;
+  }
+  .placeholder .hero-title {
+    position: relative;
+    z-index: 1;
+    color: var(--hero-white);
+    font-size: 1.4rem;
+    font-weight: 700;
+  }
+  .placeholder .hero-sub {
+    position: relative;
+    z-index: 1;
+    color: var(--hero-gray);
+    font-size: 0.95rem;
+    line-height: 1.5;
+    max-width: 320px;
+  }
+  #heroStartBtn {
+    position: relative;
+    z-index: 1;
+    background: var(--hero-green);
+    color: var(--hero-dark);
+    border: none;
+    border-radius: 999px;
+    padding: 14px 32px;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 4px 20px rgba(76,175,122,0.35);
+  }
+  #heroStartBtn:active { transform: scale(0.97); }
+
+  .status-badge {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    background: rgba(15,18,32,0.75);
+    backdrop-filter: blur(6px);
+    border-radius: 999px;
+    padding: 8px 16px;
+    font-size: 0.95rem;
+    display: none;
+    align-items: center;
+    gap: 8px;
+  }
+  .status-badge .dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--accent2);
+  }
+  .status-badge.closed .dot { background: #ffb84e; }
+  .status-badge.alarm .dot { background: var(--danger); animation: blink 0.5s infinite; }
+  @keyframes blink { 50% { opacity: 0.2; } }
+
+  .overlay-alert {
+    position: absolute;
+    inset: 0;
+    background: rgba(255,92,122,0.25);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 8px;
+    font-size: 2.4rem;
+    font-weight: 800;
+    text-shadow: 0 2px 12px rgba(0,0,0,0.5);
+  }
+
+  .controls {
+    background: var(--card);
+    border-radius: 20px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+  .btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  button {
+    border: none;
+    border-radius: 14px;
+    padding: 14px 24px;
+    font-size: 1.05rem;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+    transition: transform 0.1s, opacity 0.2s;
+  }
+  button:active { transform: scale(0.97); }
+  #startBtn {
+    flex: 1;
+    background: linear-gradient(135deg, var(--accent), #3d9163);
+    color: var(--hero-dark);
+  }
+  #startBtn:disabled { opacity: 0.5; cursor: wait; }
+  #testBtn, #beautyBtn {
+    background: var(--card2);
+    color: var(--text);
+  }
+  #beautyBtn.off {
+    opacity: 0.55;
+  }
+
+  .slider-group { display: flex; flex-direction: column; gap: 6px; }
+  .slider-group label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.92rem;
+    color: var(--sub);
+  }
+  .slider-group label b { color: var(--text); }
+  input[type=range] {
+    width: 100%;
+    accent-color: var(--accent);
+    height: 24px;
+  }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+  .stat {
+    background: var(--card);
+    border-radius: 16px;
+    padding: 16px 12px;
+    text-align: center;
+  }
+  .stat .val { font-size: 1.5rem; font-weight: 800; }
+  .stat .label { font-size: 0.8rem; color: var(--sub); margin-top: 4px; }
+
+  .privacy {
+    text-align: center;
+    color: var(--sub);
+    font-size: 0.82rem;
+    line-height: 1.6;
+  }
+
+  .ad-slot {
+    background: var(--card);
+    border: 1px dashed #3a3d42;
+    border-radius: 16px;
+    min-height: 90px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--sub);
+    font-size: 0.85rem;
+  }
+</style>
+</head>
+<body>
+<aside class="side-rail">AD<br>광고 영역</aside>
+
+<div class="main-col">
+<header>
+  <h1><span class="eye">👁️</span> 눈 떠!</h1>
+  <p>졸아서 눈 감으면 바로 깨워드려요 · 공부/작업 집중 도우미</p>
+</header>
+
+<div class="app">
+  <div class="video-wrap" id="videoWrap">
+    <div class="placeholder" id="placeholder">
+      <img class="moon-face" src="assets/sleep_orb.png" alt="졸린 초록 얼굴">
+      <div class="hero-title">편안하게 눈을 감으세요</div>
+      <p class="hero-sub">눈을 감으면 알람이 울려 집중을 도와드려요</p>
+      <button id="heroStartBtn">집중 시작하기</button>
+    </div>
+    <video id="video" autoplay playsinline muted></video>
+    <div class="status-badge" id="statusBadge"><span class="dot"></span><span id="statusText">준비 중…</span></div>
+    <div class="overlay-alert" id="overlayAlert"><span>👁️ 눈 떠!!</span><span style="font-size:1rem;font-weight:500;">일어나세요!</span></div>
+  </div>
+
+  <div class="controls">
+    <div class="btn-row">
+      <button id="startBtn">📷 감지 시작하기</button>
+      <button id="testBtn">🔊 알람 미리듣기</button>
+      <button id="beautyBtn">✨ 뽀샤시 모드: ON</button>
+    </div>
+    <div class="slider-group">
+      <label>알람까지 걸리는 시간 <b id="delayVal">2.0초</b></label>
+      <input type="range" id="delaySlider" min="0.5" max="5" step="0.5" value="2">
+    </div>
+    <div class="slider-group">
+      <label>감지 민감도 <b id="sensVal">보통</b></label>
+      <input type="range" id="sensSlider" min="0.3" max="0.6" step="0.05" value="0.45">
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="val" id="focusTime">0:00</div><div class="label">집중 시간</div></div>
+    <div class="stat"><div class="val" id="alarmCount">0</div><div class="label">졸음 알람</div></div>
+    <div class="stat"><div class="val" id="blinkState">—</div><div class="label">현재 눈 상태</div></div>
+  </div>
+
+  <!-- 광고 자리: AdSense / 카카오 AdFit 코드가 여기 들어갑니다 -->
+  <div class="ad-slot">AD — 광고 영역 (AdSense/AdFit 승인 후 교체)</div>
+
+  <p class="privacy">🔒 모든 얼굴 인식은 브라우저 안(온디바이스 AI)에서만 실행됩니다.<br>영상·이미지가 서버로 전송되거나 저장되지 않습니다.</p>
+</div>
+</div>
+
+<aside class="side-rail">AD<br>광고 영역</aside>
+
+<script type="module">
+import { FaceLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
+
+const video = document.getElementById("video");
+const startBtn = document.getElementById("startBtn");
+const testBtn = document.getElementById("testBtn");
+const beautyBtn = document.getElementById("beautyBtn");
+const statusBadge = document.getElementById("statusBadge");
+const statusText = document.getElementById("statusText");
+const overlayAlert = document.getElementById("overlayAlert");
+const videoWrap = document.getElementById("videoWrap");
+const placeholder = document.getElementById("placeholder");
+const delaySlider = document.getElementById("delaySlider");
+const sensSlider = document.getElementById("sensSlider");
+const delayVal = document.getElementById("delayVal");
+const sensVal = document.getElementById("sensVal");
+const focusTimeEl = document.getElementById("focusTime");
+const alarmCountEl = document.getElementById("alarmCount");
+const blinkStateEl = document.getElementById("blinkState");
+
+let faceLandmarker = null;
+let running = false;
+let closedSince = null;
+let alarming = false;
+let alarmCount = 0;
+let startTime = null;
+let audioCtx = null;
+let alarmTimer = null;
+let beautyOn = true;
+
+delaySlider.oninput = () => delayVal.textContent = Number(delaySlider.value).toFixed(1) + "초";
+sensSlider.oninput = () => {
+  const v = Number(sensSlider.value);
+  sensVal.textContent = v <= 0.35 ? "둔감" : v >= 0.55 ? "민감" : "보통";
+};
+
+function beep(freq, dur) {
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = "square";
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0.18, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+  osc.connect(gain).connect(audioCtx.destination);
+  osc.start();
+  osc.stop(audioCtx.currentTime + dur);
+}
+
+function ensureAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === "suspended") audioCtx.resume();
+}
+
+function startAlarm() {
+  if (alarming) return;
+  alarming = true;
+  alarmCount++;
+  alarmCountEl.textContent = alarmCount;
+  overlayAlert.style.display = "flex";
+  videoWrap.classList.add("alarming");
+  statusBadge.classList.add("alarm");
+  statusText.textContent = "🚨 일어나세요!";
+  const pattern = () => { beep(880, 0.15); setTimeout(() => beep(1320, 0.15), 180); };
+  pattern();
+  alarmTimer = setInterval(pattern, 500);
+}
+
+function stopAlarm() {
+  if (!alarming) return;
+  alarming = false;
+  clearInterval(alarmTimer);
+  overlayAlert.style.display = "none";
+  videoWrap.classList.remove("alarming");
+  statusBadge.classList.remove("alarm");
+}
+
+testBtn.onclick = () => {
+  ensureAudio();
+  beep(880, 0.15);
+  setTimeout(() => beep(1320, 0.15), 180);
+};
+
+beautyBtn.onclick = () => {
+  beautyOn = !beautyOn;
+  video.classList.toggle("beauty", beautyOn);
+  beautyBtn.textContent = beautyOn ? "✨ 뽀샤시 모드: ON" : "✨ 뽀샤시 모드: OFF";
+  beautyBtn.classList.toggle("off", !beautyOn);
+};
+
+const heroStartBtn = document.getElementById("heroStartBtn");
+
+async function init() {
+  startBtn.disabled = true;
+  startBtn.textContent = "⏳ AI 모델 로딩 중…";
+  heroStartBtn.disabled = true;
+  heroStartBtn.textContent = "⏳ 준비 중…";
+  try {
+    const fileset = await FilesetResolver.forVisionTasks(
+      "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
+    );
+    faceLandmarker = await FaceLandmarker.createFromOptions(fileset, {
+      baseOptions: {
+        modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+        delegate: "GPU"
+      },
+      outputFaceBlendshapes: true,
+      runningMode: "VIDEO",
+      numFaces: 1
+    });
+
+    startBtn.textContent = "⏳ 카메라 켜는 중…";
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: false });
+    video.srcObject = stream;
+    await new Promise(r => video.onloadeddata = r);
+
+    ensureAudio();
+    placeholder.style.display = "none";
+    video.style.display = "block";
+    video.classList.toggle("beauty", beautyOn);
+    statusBadge.style.display = "flex";
+    startBtn.textContent = "✅ 감지 중 (끄려면 새로고침)";
+    running = true;
+    startTime = Date.now();
+    setInterval(updateFocusTime, 1000);
+    setInterval(detect, 100);
+  } catch (e) {
+    console.error(e);
+    startBtn.disabled = false;
+    startBtn.textContent = "📷 감지 시작하기";
+    heroStartBtn.disabled = false;
+    heroStartBtn.textContent = "집중 시작하기";
+    alert(e.name === "NotAllowedError"
+      ? "카메라 권한이 필요해요. 주소창의 카메라 아이콘에서 허용해 주세요."
+      : "시작 실패: " + e.message);
+  }
+}
+
+let lastVideoTime = -1;
+function detect() {
+  if (!running || video.readyState < 2) return;
+  if (video.currentTime === lastVideoTime) return;
+  lastVideoTime = video.currentTime;
+
+  const result = faceLandmarker.detectForVideo(video, performance.now());
+  const shapes = result.faceBlendshapes?.[0]?.categories;
+
+  if (!shapes) {
+    blinkStateEl.textContent = "🙈";
+    statusText.textContent = "얼굴이 안 보여요";
+    closedSince = null;
+    stopAlarm();
+    return;
+  }
+
+  const left = shapes.find(c => c.categoryName === "eyeBlinkLeft")?.score ?? 0;
+  const right = shapes.find(c => c.categoryName === "eyeBlinkRight")?.score ?? 0;
+  const closedScore = (left + right) / 2;
+  const threshold = Number(sensSlider.value);
+  const isClosed = closedScore > threshold;
+
+  if (isClosed) {
+    blinkStateEl.textContent = "😪";
+    if (closedSince === null) closedSince = performance.now();
+    const closedFor = (performance.now() - closedSince) / 1000;
+    if (!alarming) {
+      statusBadge.classList.add("closed");
+      statusText.textContent = `눈 감김 ${closedFor.toFixed(1)}초…`;
+      if (closedFor >= Number(delaySlider.value)) startAlarm();
+    }
+  } else {
+    blinkStateEl.textContent = "😳";
+    closedSince = null;
+    stopAlarm();
+    statusBadge.classList.remove("closed");
+    statusText.textContent = "집중 감지 중";
+  }
+}
+
+function updateFocusTime() {
+  const s = Math.floor((Date.now() - startTime) / 1000);
+  const m = Math.floor(s / 60);
+  focusTimeEl.textContent = `${m}:${String(s % 60).padStart(2, "0")}`;
+}
+
+startBtn.onclick = init;
+heroStartBtn.onclick = init;
+</script>
+</body>
+</html>
