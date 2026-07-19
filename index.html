@@ -364,12 +364,12 @@ sensSlider.oninput = () => {
   sensVal.textContent = v <= 0.35 ? "둔감" : v >= 0.55 ? "민감" : "보통";
 };
 
-function beep(freq, dur) {
+function beep(freq, dur, volume = 0.18) {
   const osc = audioCtx.createOscillator();
   const gain = audioCtx.createGain();
   osc.type = "square";
   osc.frequency.value = freq;
-  gain.gain.setValueAtTime(0.18, audioCtx.currentTime);
+  gain.gain.setValueAtTime(volume, audioCtx.currentTime);
   gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
   osc.connect(gain).connect(audioCtx.destination);
   osc.start();
@@ -390,7 +390,12 @@ function startAlarm() {
   videoWrap.classList.add("alarming");
   statusBadge.classList.add("alarm");
   statusText.textContent = "🚨 일어나세요!";
-  const pattern = () => { beep(880, 0.15); setTimeout(() => beep(1320, 0.15), 180); };
+  const pattern = () => {
+    const closedElapsed = closedSince !== null ? (performance.now() - closedSince) / 1000 : 0;
+    const volume = Math.min(0.9, 0.15 + (closedElapsed / 10) * 0.75);
+    beep(880, 0.15, volume);
+    setTimeout(() => beep(1320, 0.15, volume), 180);
+  };
   pattern();
   alarmTimer = setInterval(pattern, 500);
 }
